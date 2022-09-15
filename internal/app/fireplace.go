@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -57,11 +58,22 @@ func (f *Fireplace) Update() error {
 			10,
 		))
 	}
+	if repeatingKeyPress(ebiten.KeyC) {
+		f.movableObjects = f.movableObjects[:0]
+	}
 
-	f.applyGravity()
-	f.applyConstraint()
-	f.solveCollisions()
-	f.updatePositions(1)
+	var (
+		dt       float64 = 1
+		subSteps         = 4
+		subDt            = dt / float64(subSteps)
+	)
+
+	for i := 0; i < subSteps; i++ {
+		f.applyGravity()
+		f.applyConstraint()
+		f.solveCollisions()
+		f.updatePositions(subDt)
+	}
 
 	return nil
 }
@@ -101,6 +113,8 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 			obj.Color,
 		)
 	}
+
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("count: %d", len(f.movableObjects)))
 }
 
 func (f *Fireplace) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
