@@ -49,6 +49,15 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 }
 
 func (f *Fireplace) Update() error {
+	if repeatingMouseClick(ebiten.MouseButtonLeft) {
+		cursorX, cursorY := ebiten.CursorPosition()
+
+		f.movableObjects = append(f.movableObjects, physics.NewVerletObject(
+			math.Vec2{X: float64(cursorX), Y: float64(cursorY)},
+			10,
+		))
+	}
+
 	f.applyGravity()
 	f.applyConstraint()
 	f.updatePositions(1)
