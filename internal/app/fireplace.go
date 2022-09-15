@@ -60,6 +60,7 @@ func (f *Fireplace) Update() error {
 
 	f.applyGravity()
 	f.applyConstraint()
+	f.solveCollisions()
 	f.updatePositions(1)
 
 	return nil

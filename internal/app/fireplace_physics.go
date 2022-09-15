@@ -38,3 +38,28 @@ func (f *Fireplace) applyConstraint() {
 		}
 	}
 }
+
+func (f *Fireplace) solveCollisions() {
+	objectCount := len(f.movableObjects)
+	for i := 0; i < objectCount; i++ {
+		obj1 := f.movableObjects[i]
+		for k := i + 1; k < objectCount; k++ {
+			obj2 := f.movableObjects[k]
+			collisionAxis := math.SubVec2(obj1.CurrentPosition, obj2.CurrentPosition)
+			dist := collisionAxis.Len()
+			if dist < obj1.Radius+obj2.Radius {
+				n := math.ApplyVec2(collisionAxis, 1/dist)
+				delta := obj1.Radius + obj2.Radius - dist
+
+				obj1.CurrentPosition = math.SumVec2(
+					obj1.CurrentPosition,
+					math.ApplyVec2(n, float64(0.5)*delta),
+				)
+				obj2.CurrentPosition = math.SubVec2(
+					obj2.CurrentPosition,
+					math.ApplyVec2(n, float64(0.5)*delta),
+				)
+			}
+		}
+	}
+}
