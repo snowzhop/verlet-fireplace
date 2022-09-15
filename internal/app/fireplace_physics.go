@@ -23,3 +23,18 @@ func (f *Fireplace) updatePositions(dt float64) {
 		obj.UpdatePosition(dt)
 	}
 }
+
+func (f *Fireplace) applyConstraint() {
+	for _, obj := range f.movableObjects {
+		toObj := math.SubVec2(obj.CurrentPosition, f.staticMainConstraint.Position)
+		dist := toObj.Len()
+
+		if dist > f.staticMainConstraint.Radius-obj.Radius {
+			n := math.ApplyVec2(toObj, float64(1)/dist)
+			obj.CurrentPosition = math.SumVec2(
+				f.staticMainConstraint.Position,
+				math.ApplyVec2(n, f.staticMainConstraint.Radius-obj.Radius),
+			)
+		}
+	}
+}

@@ -32,10 +32,8 @@ func (v *VerletObject) UpdatePosition(dt float64) {
 	// CurrentPosition = CurrentPosition + velocity + acceleration * dt^2
 	v.CurrentPosition = math.SumVec2(
 		v.CurrentPosition,
-		math.SumVec2(
-			velocity,
-			math.ApplyVec2(v.Acceleration, dt*dt),
-		),
+		velocity,
+		math.ApplyVec2(v.Acceleration, dt*dt),
 	)
 
 	v.Acceleration = math.Vec2{}
