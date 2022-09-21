@@ -2,10 +2,11 @@ package app
 
 import (
 	"fmt"
-	"image/color"
+	stdcolor "image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/snowzhop/verlet-fireplace/internal/color"
 	"github.com/snowzhop/verlet-fireplace/internal/math"
 	"github.com/snowzhop/verlet-fireplace/internal/physics"
 )
@@ -21,21 +22,24 @@ type Fireplace struct {
 }
 
 func NewFireplace(screenWidth, screenHeight int) *Fireplace {
-	radius := float64(10)
-	obj := physics.NewVerletObject(
-		math.Vec2{
-			X: (float64(screenWidth) + radius) / 2,
-			Y: (float64(screenHeight) + radius) / 2,
-		},
-		radius,
-	)
+	radius := float64(8)
 
-	circle := physics.Circle{
-		Radius: 180,
-		Position: math.Vec2{
-			X: 250,
-			Y: 200,
-		},
+	fmt.Printf("screenHeight: %d\n", screenHeight)
+	fmt.Printf("screenWidth: %d\n", screenWidth)
+
+	var objects []*physics.VerletObject
+	for x := int(radius); x < screenWidth-int(radius); x += 2 * int(radius) {
+		for y := int(radius); y < int(float32(screenHeight)/2); y += 2 * int(radius) {
+			objects = append(objects, physics.NewVerletObjectWithTemp(
+				math.Vec2{
+					X: float64(x),
+					Y: float64(y),
+				},
+				radius,
+				100,
+			))
+		}
+
 	}
 
 	return &Fireplace{
@@ -43,9 +47,8 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 			screenWidth:  screenWidth,
 			screenHeight: screenHeight,
 		},
-		gravity:              math.Vec2{X: 0, Y: 0.5},
-		movableObjects:       []*physics.VerletObject{obj},
-		staticMainConstraint: circle,
+		gravity:        math.Vec2{X: 0, Y: 0.5},
+		movableObjects: objects,
 	}
 }
 
@@ -53,10 +56,12 @@ func (f *Fireplace) Update() error {
 	if repeatingMouseClick(ebiten.MouseButtonLeft) {
 		cursorX, cursorY := ebiten.CursorPosition()
 
-		f.movableObjects = append(f.movableObjects, physics.NewVerletObject(
+		obj := physics.NewVerletObject(
 			math.Vec2{X: float64(cursorX), Y: float64(cursorY)},
 			10,
-		))
+		)
+
+		f.movableObjects = append(f.movableObjects, obj)
 	}
 	if repeatingKeyPress(ebiten.KeyC) {
 		f.movableObjects = f.movableObjects[:0]
@@ -64,7 +69,7 @@ func (f *Fireplace) Update() error {
 
 	var (
 		dt       float64 = 1
-		subSteps         = 4
+		subSteps         = 2
 		subDt            = dt / float64(subSteps)
 	)
 
@@ -79,7 +84,31 @@ func (f *Fireplace) Update() error {
 }
 
 func (f *Fireplace) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{
+	// f.withCircleConstraint(screen)
+
+	var tempSum float64
+	for _, obj := range f.movableObjects {
+		tempSum += obj.Temperature
+
+		ebitenutil.DrawCircle(
+			screen,
+			obj.CurrentPosition.X,
+			obj.CurrentPosition.Y,
+			obj.Radius,
+			color.ToRGBByTemperature(uint32(obj.Temperature)),
+		)
+	}
+
+	ebitenutil.DebugPrint(screen,
+		fmt.Sprintf(
+			"count: %d\naverage temp: %f",
+			len(f.movableObjects),
+			float32(tempSum)/float32(len(f.movableObjects)),
+		))
+}
+
+func (f *Fireplace) withCircleConstraint(screen *ebiten.Image) {
+	screen.Fill(stdcolor.RGBA{
 		R: 128,
 		G: 128,
 		B: 128,
@@ -91,30 +120,18 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		f.staticMainConstraint.Position.X,
 		f.staticMainConstraint.Position.Y,
 		f.staticMainConstraint.Radius,
-		color.Black,
+		stdcolor.Black,
 	)
 	ebitenutil.DrawCircle(
 		screen,
 		f.staticMainConstraint.Position.X,
 		f.staticMainConstraint.Position.Y,
 		1,
-		color.RGBA{
+		stdcolor.RGBA{
 			R: 255,
 			A: 255,
 		},
 	)
-
-	for _, obj := range f.movableObjects {
-		ebitenutil.DrawCircle(
-			screen,
-			obj.CurrentPosition.X,
-			obj.CurrentPosition.Y,
-			obj.Radius,
-			obj.Color,
-		)
-	}
-
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("count: %d", len(f.movableObjects)))
 }
 
 func (f *Fireplace) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

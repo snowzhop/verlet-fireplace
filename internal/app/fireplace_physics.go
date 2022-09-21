@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/snowzhop/verlet-fireplace/internal/math"
+	"github.com/snowzhop/verlet-fireplace/internal/physics"
 )
 
 var (
@@ -26,15 +27,27 @@ func (f *Fireplace) updatePositions(dt float64) {
 
 func (f *Fireplace) applyConstraint() {
 	for _, obj := range f.movableObjects {
-		toObj := math.SubVec2(obj.CurrentPosition, f.staticMainConstraint.Position)
-		dist := toObj.Len()
+		// toObj := math.SubVec2(obj.CurrentPosition, f.staticMainConstraint.Position)
+		// dist := toObj.Len()
 
-		if dist > f.staticMainConstraint.Radius-obj.Radius {
-			n := math.ApplyVec2(toObj, float64(1)/dist)
-			obj.CurrentPosition = math.SumVec2(
-				f.staticMainConstraint.Position,
-				math.ApplyVec2(n, f.staticMainConstraint.Radius-obj.Radius),
-			)
+		// if dist > f.staticMainConstraint.Radius-obj.Radius {
+		// 	n := math.ApplyVec2(toObj, float64(1)/dist)
+		// 	obj.CurrentPosition = math.SumVec2(
+		// 		f.staticMainConstraint.Position,
+		// 		math.ApplyVec2(n, f.staticMainConstraint.Radius-obj.Radius),
+		// 	)
+		// }
+
+		if obj.CurrentPosition.X < 0+obj.Radius {
+			obj.CurrentPosition.X = obj.Radius
+		}
+		if obj.CurrentPosition.X > float64(f.game.screenWidth)-obj.Radius {
+			obj.CurrentPosition.X = float64(f.game.screenWidth) - obj.Radius
+		}
+
+		// don't constraint on the screen top
+		if obj.CurrentPosition.Y > float64(f.game.screenHeight)-obj.Radius {
+			obj.CurrentPosition.Y = float64(f.game.screenHeight) - obj.Radius
 		}
 	}
 }
@@ -59,6 +72,24 @@ func (f *Fireplace) solveCollisions() {
 					obj2.CurrentPosition,
 					math.ApplyVec2(n, float64(0.5)*delta),
 				)
+
+				// Temperature
+				tStep := 0.5
+				if obj1.Temperature < obj2.Temperature {
+					if obj1.Temperature+tStep < physics.MaxTemperature {
+						obj1.Temperature += tStep
+					}
+					if obj2.Temperature-tStep > 0 {
+						obj2.Temperature -= tStep
+					}
+				} else {
+					if obj1.Temperature-tStep > 0 {
+						obj1.Temperature -= tStep
+					}
+					if obj2.Temperature+tStep < physics.MaxTemperature {
+						obj2.Temperature += tStep
+					}
+				}
 			}
 		}
 	}
