@@ -1,6 +1,9 @@
 package math
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type Vec2 struct {
 	X, Y float64
@@ -8,6 +11,14 @@ type Vec2 struct {
 
 func (v *Vec2) Len() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y)
+}
+
+func (v *Vec2) IsNaN() bool {
+	return math.IsNaN(v.X) || math.IsNaN(v.Y)
+}
+
+func (v *Vec2) String() string {
+	return fmt.Sprintf("{%f; %f}", v.X, v.Y)
 }
 
 func SubVec2(a, b Vec2) Vec2 {

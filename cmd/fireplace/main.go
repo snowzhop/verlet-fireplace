@@ -8,9 +8,11 @@ import (
 )
 
 func main() {
-	fireplace := app.NewFireplace(640, 480)
+	width := 400
 
-	ebiten.SetWindowSize(640, 480)
+	fireplace := app.NewFireplace(width, width)
+
+	ebiten.SetWindowSize(width, width)
 	ebiten.SetWindowTitle("Verlet Fireplace")
 
 	if err := ebiten.RunGame(fireplace); err != nil {
