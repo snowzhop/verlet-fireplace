@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	width := 400
+	width := 600
 
 	fireplace := app.NewFireplace(width, width)
 

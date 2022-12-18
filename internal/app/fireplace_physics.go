@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/snowzhop/verlet-fireplace/internal/container"
 	"github.com/snowzhop/verlet-fireplace/internal/math"
 	"github.com/snowzhop/verlet-fireplace/internal/math/quadtree"
 	"github.com/snowzhop/verlet-fireplace/internal/physics"
@@ -29,8 +30,9 @@ func (f *Fireplace) applyForces() {
 				raiseForce,
 			),
 		)
+		t := f.game.temperatureLosing
 		// t := math.Sigmoid(obj.Temperature()/physics.MaxTemperature*12-6) * obj.Temperature()
-		t := math.Linear(obj.Temperature(), 1.5) / physics.MaxTemperature * obj.Temperature()
+		// t := math.Linear(obj.Temperature(), 1.5) / physics.MaxTemperature * obj.Temperature()
 		obj.IncreaseTemperature(-t)
 
 		if obj.CurrentPosition.IsNaN() {
@@ -359,8 +361,6 @@ func (f *Fireplace) solveCollisions6() {
 			continue
 		}
 
-		fmt.Println("COLLISION!!!")
-
 		index := i - len(hiddenParticles)
 		f.movableObjects = append(f.movableObjects[:index], f.movableObjects[index+1:]...)
 		hiddenParticles = append(hiddenParticles, obj)
@@ -378,6 +378,130 @@ func (f *Fireplace) solveCollisions6() {
 	f.hiddenObjects = hiddenParticles
 
 	// ---------------------
+}
+
+func (f *Fireplace) solveCollisions7() {
+	intersections := f.root.FindIntersections()
+	for _, pair := range intersections {
+		obj1 := pair.First.(*physics.VerletObject)
+		obj2 := pair.Second.(*physics.VerletObject)
+
+		collisionAxis := math.SubVec2(obj1.CurrentPosition, obj2.CurrentPosition)
+		dist := collisionAxis.Len()
+
+		n := math.ApplyVec2(collisionAxis, 1/dist)
+		delta := obj1.Radius() + obj2.Radius() - dist
+		correction := math.ApplyVec2(n, float64(0.5)*delta)
+
+		obj1NextPosition := math.SumVec2(
+			obj1.CurrentPosition,
+			correction,
+		)
+		obj2NextPosition := math.SubVec2(
+			obj2.CurrentPosition,
+			correction,
+		)
+
+		if obj1NextPosition.IsNaN() {
+			obj1.Hidden = true
+		} else {
+			obj1.CurrentPosition = obj1NextPosition
+		}
+		if obj2NextPosition.IsNaN() {
+			obj2.Hidden = true
+		} else {
+			obj2.CurrentPosition = obj2NextPosition
+		}
+
+		// Temperature
+		if obj1.Temperature() < obj2.Temperature() {
+			obj1.IncreaseTemperature(f.game.temperatureStep)
+			obj2.IncreaseTemperature(-f.game.temperatureStep)
+		} else {
+			obj1.IncreaseTemperature(-f.game.temperatureStep)
+			obj2.IncreaseTemperature(f.game.temperatureStep)
+		}
+	}
+}
+
+func (f *Fireplace) solveCollisions8() {
+	var (
+		intersections = f.root.FindIntersections()
+		objSliceLen   = len(intersections)
+		numOfThreads  = 4
+		step          = objSliceLen / numOfThreads
+		start         = -step
+		end           = 0
+		wg            sync.WaitGroup
+	)
+
+	proc := func(pairs []*container.Pair[quadtree.Particle, quadtree.Particle]) {
+		for _, pair := range pairs {
+			obj1 := pair.First.(*physics.VerletObject)
+			obj2 := pair.Second.(*physics.VerletObject)
+
+			collisionAxis := math.SubVec2(obj1.CurrentPosition, obj2.CurrentPosition)
+			dist := collisionAxis.Len()
+
+			n := math.ApplyVec2(collisionAxis, 1/dist)
+			delta := obj1.Radius() + obj2.Radius() - dist
+			correction := math.ApplyVec2(n, float64(0.5)*delta)
+
+			obj1NextPosition := math.SumVec2(
+				obj1.CurrentPosition,
+				correction,
+			)
+			obj2NextPosition := math.SubVec2(
+				obj2.CurrentPosition,
+				correction,
+			)
+
+			if obj1NextPosition.IsNaN() {
+				obj1.Hidden = true
+			} else {
+				obj1.CurrentPosition = obj1NextPosition
+			}
+			if obj2NextPosition.IsNaN() {
+				obj2.Hidden = true
+			} else {
+				obj2.CurrentPosition = obj2NextPosition
+			}
+
+			// Temperature
+			if obj1.Temperature() < obj2.Temperature() {
+				obj1.IncreaseTemperature(f.game.temperatureStep)
+				obj2.IncreaseTemperature(-f.game.temperatureStep)
+			} else {
+				obj1.IncreaseTemperature(-f.game.temperatureStep)
+				obj2.IncreaseTemperature(f.game.temperatureStep)
+			}
+		}
+	}
+
+	for end < len(intersections) {
+		start += step
+		end += step
+		if objSliceLen-end < step {
+			end = objSliceLen
+		}
+
+		wg.Add(1)
+		go func(s, e int) {
+			defer wg.Done()
+
+			proc(intersections[s:e])
+		}(start, end)
+	}
+
+	wg.Wait()
+}
+
+func (f *Fireplace) recalculateRadiuses() {
+	for _, obj := range f.movableObjects {
+		newRadius :=
+			obj.Temperature()/physics.MaxTemperature*(maxRadius-minRadius) + minRadius
+		obj.SetRadius(newRadius)
+	}
 }
 
 func (f *Fireplace) canHiddenObjectBeRestored(obj *physics.VerletObject) bool {
@@ -399,7 +523,12 @@ func (f *Fireplace) rebuildTree() {
 	// f.root = quadtree.New(float64(f.game.screenWidth))
 	f.root = quadtree.NewWithStart(-rootOffset, -rootOffset, float64(f.game.screenWidth)+2*rootOffset)
 	for _, obj := range f.movableObjects {
-		f.root.Insert(obj)
+		if !obj.Hidden {
+			f.root.Insert(obj)
+		} else {
+			obj.Refresh(float64(f.game.screenWidth))
+			f.root.Insert(obj)
+		}
 	}
 }
 

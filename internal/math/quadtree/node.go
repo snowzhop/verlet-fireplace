@@ -1,7 +1,6 @@
 package quadtree
 
 import (
-	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -24,7 +23,11 @@ const (
 	NW
 	SW
 	SE
-	Unknown = -1
+	UnknownQuadrant = -1
+)
+
+const (
+	threshold = 8
 )
 
 type Node struct {
@@ -33,9 +36,9 @@ type Node struct {
 	Count       uint32
 	Width       float64
 
-	Type     NodeType
-	Children []*Node
-	Particle Particle
+	Type      NodeType
+	Children  []*Node
+	Particles []Particle
 }
 
 func New(width float64) *Node {
@@ -80,7 +83,29 @@ func (n *Node) defineQuadrant(pos math.Vec2) Quadrant {
 	case pos.X >= n.QuadrantPos.X+halfWidth && pos.Y >= n.QuadrantPos.Y+halfWidth:
 		return SE
 	}
-	return Unknown
+	return UnknownQuadrant
+}
+
+func (n *Node) defineQuadrant2(p Particle) Quadrant {
+	halfWidth := n.Width * 0.5
+	pSide := p.Side()
+	pPos := p.Position()
+
+	if pPos.X+pSide < n.QuadrantPos.X+halfWidth {
+		if pPos.Y+pSide < n.QuadrantPos.Y+halfWidth {
+			return NW
+		} else if pPos.Y >= n.QuadrantPos.Y+halfWidth {
+			return SW
+		}
+	} else if pPos.X >= n.QuadrantPos.X+halfWidth {
+		if pPos.Y+pSide < n.QuadrantPos.Y+halfWidth {
+			return NE
+		} else if pPos.Y >= n.QuadrantPos.Y+halfWidth {
+			return SE
+		}
+	}
+
+	return UnknownQuadrant
 }
 
 func (n *Node) split() {
@@ -94,67 +119,34 @@ func (n *Node) split() {
 
 func (n *Node) Insert(p Particle) {
 	if n.Type == Leaf {
-		n.splitLeaf(p)
-		return
+		if len(n.Particles) < threshold {
+			n.Particles = append(n.Particles, p)
+		} else {
+			n.splitLeaf()
+			n.Insert(p)
+		}
+	} else {
+		q := n.defineQuadrant2(p)
+		if q != UnknownQuadrant {
+			n.Children[q].Insert(p)
+		} else {
+			n.Particles = append(n.Particles, p)
+		}
 	}
-
-	n.TotalPos = math.SumVec2(n.TotalPos, p.Position())
-	n.Count++
-	n.Children[n.defineQuadrant(p.Position())].Insert(p)
 }
 
-func (n *Node) splitLeaf(newParticle Particle) {
-	if n.Particle != nil {
-		a := n.Particle
-		b := newParticle
-
-		n.TotalPos = math.SumVec2(n.TotalPos, b.Position())
-		n.Count++
-
-		current := n
-		qA := n.defineQuadrant(a.Position())
-		qB := n.defineQuadrant(b.Position())
-
-		loopCounter := 0
-		for qA == qB {
-			loopCounter++
-			if loopCounter > 200 {
-				fmt.Println("!!!    loopCounter > 200    !!!")
-				fmt.Println("a:", a)
-				fmt.Println("b:", b)
-			}
-			current.split()
-			current = current.Children[qA]
-			qA = current.defineQuadrant(a.Position())
-			qB = current.defineQuadrant(b.Position())
-
-			current.TotalPos = math.SumVec2(current.TotalPos, a.Position(), b.Position())
-			current.Count += 2
+func (n *Node) splitLeaf() {
+	n.split()
+	parentParticles := make([]Particle, 0, threshold)
+	for _, p := range n.Particles {
+		q := n.defineQuadrant2(p)
+		if q != UnknownQuadrant {
+			n.Children[q].Particles = append(n.Children[q].Particles, p)
+		} else {
+			parentParticles = append(parentParticles, p)
 		}
-
-		current.split()
-
-		current.Children[qA].Particle = a
-		current.Children[qA].TotalPos = math.SumVec2(
-			current.Children[qA].TotalPos,
-			a.Position(),
-		)
-		current.Children[qA].Count++
-
-		current.Children[qB].Particle = b
-		current.Children[qB].TotalPos = math.SumVec2(
-			current.Children[qB].TotalPos,
-			b.Position(),
-		)
-		current.Children[qB].Count++
-
-		n.Particle = nil
-		return
 	}
-
-	n.Particle = newParticle
-	n.TotalPos = math.SumVec2(newParticle.Position())
-	n.Count++
+	n.Particles = parentParticles
 }
 
 func (n *Node) Dump() {
@@ -167,10 +159,20 @@ func (n *Node) FindIntersections() []*container.Pair[Particle, Particle] {
 
 func findAllIntersections(node *Node) []*container.Pair[Particle, Particle] {
 	var result []*container.Pair[Particle, Particle]
+	for i := 0; i < len(node.Particles); i++ {
+		for j := 0; j < i; j++ {
+			if node.Particles[i].Intersects(node.Particles[j]) {
+				result = append(result, &container.Pair[Particle, Particle]{
+					First:  node.Particles[i],
+					Second: node.Particles[j],
+				})
+			}
+		}
+	}
 	if node.Type != Leaf {
 		for _, ch := range node.Children {
-			if node.Particle != nil {
-				result = append(result, findIntersectionsInDescendants(ch, node.Particle)...)
+			for _, p := range node.Particles {
+				result = append(result, findIntersectionsInDescendants(ch, p)...)
 			}
 		}
 		for _, ch := range node.Children {
@@ -182,17 +184,16 @@ func findAllIntersections(node *Node) []*container.Pair[Particle, Particle] {
 
 func findIntersectionsInDescendants(node *Node, p Particle) []*container.Pair[Particle, Particle] {
 	var result []*container.Pair[Particle, Particle]
-	switch node.Type {
-	case Leaf:
-		if node.Particle != nil {
-			if node.Particle.Intersects(p) {
-				result = append(result, &container.Pair[Particle, Particle]{
-					First:  p,
-					Second: node.Particle,
-				})
-			}
+
+	for _, val := range node.Particles {
+		if p.Intersects(val) {
+			result = append(result, &container.Pair[Particle, Particle]{
+				First:  p,
+				Second: val,
+			})
 		}
-	case Internal:
+	}
+	if node.Type != Leaf {
 		for _, ch := range node.Children {
 			result = append(result, findIntersectionsInDescendants(ch, p)...)
 		}
@@ -207,15 +208,12 @@ func (n *Node) Query(p Particle) []Particle {
 
 func (n *Node) query(p Particle) []Particle {
 	var result []Particle
-	switch n.Type {
-	case Leaf:
-		if n.Particle == nil || n.Particle == p {
-			break
+	for _, val := range n.Particles {
+		if val.Intersects(p) {
+			result = append(result, val)
 		}
-		if n.Particle.Intersects(p) {
-			result = append(result, n.Particle)
-		}
-	case Internal:
+	}
+	if n.Type != Leaf {
 		for _, ch := range n.Children {
 			pos := p.Position()
 			side := p.Side()
@@ -241,7 +239,7 @@ func (n *Node) Clear() {
 	for _, ch := range n.Children {
 		ch.Clear()
 	}
-	n.Particle = nil
+	n.Particles = nil
 	n.Children = nil
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/snowzhop/verlet-fireplace/internal/color"
+	"github.com/snowzhop/verlet-fireplace/internal/graphic"
 	"github.com/snowzhop/verlet-fireplace/internal/math"
 	"github.com/snowzhop/verlet-fireplace/internal/math/geom/v3"
 	"github.com/snowzhop/verlet-fireplace/internal/math/quadtree"
@@ -16,32 +16,46 @@ import (
 )
 
 const (
-	radius     = float64(6)
+	minRadius  = float64(2)
+	maxRadius  = float64(11)
+	radius     = float64(3)
 	cellLen    = radius*2 + 2
 	rootOffset = float64(20)
 )
 
 var (
-	particleSprite ebiten.Image
+	particleSprite *ebiten.Image
+	bloomShader    *ebiten.Shader
 )
 
 func init() {
-	particleSprite = resource.Particle()
+	particleSprite = ebiten.NewImage(int(2*radius), int(2*radius))
+	ebitenutil.DrawCircle(
+		particleSprite,
+		radius,
+		radius,
+		radius,
+		stdcolor.RGBA{
+			R: 255, G: 0, B: 0, A: 255,
+		},
+	)
 }
 
 type Fireplace struct {
 	game
-	drawOptions ebiten.DrawImageOptions
 
-	gravity math.Vec2
-
-	field          *geom.Field
+	gravity        math.Vec2
 	root           *quadtree.Node
 	movableObjects []*physics.VerletObject
-	hiddenObjects  []*physics.VerletObject
 
 	heatEmitters []*physics.VerletObject
 
+	// graphic
+	particleTextureMap *graphic.TextureMap
+
+	// obsolete
+	field                *geom.Field
+	hiddenObjects        []*physics.VerletObject
 	staticMainConstraint physics.Circle
 }
 
@@ -53,17 +67,18 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 		game = game{
 			screenWidth:           screenWidth,
 			screenHeight:          screenHeight,
-			temperatureStep:       1.05,
-			temperatureLosing:     3,
-			heatEmitterEfficiency: 0.8,
+			temperatureStep:       10,
+			temperatureLosing:     0.8,
+			heatEmitterEfficiency: 0.0015,
+			bloom:                 true,
 		}
 		screenWidthF64 = float64(screenWidth)
-		// root = quadtree.New(float64(screenWidth))
+		// root           = quadtree.New(float64(screenWidth))
 		root    = quadtree.NewWithStart(-rootOffset, -rootOffset, screenWidthF64+2*rootOffset)
 		objects []*physics.VerletObject
 
 		// spawn particles
-		startCount = 400
+		startCount = 2000
 		offset     = float64(0)
 
 		// spawn heat emitters
@@ -97,6 +112,8 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 		}
 	}
 
+	// --------------- TEST ----------------
+	// objects = nil
 	// for i := 0; i < 2; i++ {
 	// 	obj := physics.NewVerletObjectWithTemp(
 	// 		math.Vec2{
@@ -110,6 +127,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 	// 	objects = append(objects, obj)
 	// 	root.Insert(obj)
 	// }
+	// -------------------------------------
 
 	var heatEmitters []*physics.VerletObject
 	for i := float64(0); i < screenWidthF64; i += radius * 7 {
@@ -121,9 +139,19 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 					Y: screenWidthF64 - heatEmitterRadius,
 				},
 				heatEmitterRadius,
-				800,
+				1000,
 			))
 		}
+	}
+
+	var (
+		err            error
+		rawBloomShader = resource.BloomShader()
+	)
+	fmt.Printf("%s\n", string(rawBloomShader))
+	bloomShader, err = ebiten.NewShader(rawBloomShader)
+	if err != nil {
+		panic(fmt.Sprintf("failed to load bloomShader: %v", err))
 	}
 
 	fmt.Printf("movableObjects count: %d\n", len(objects))
@@ -136,78 +164,72 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 		movableObjects: objects,
 		root:           root,
 		heatEmitters:   heatEmitters,
+		particleTextureMap: graphic.NewParticleTextureMap(
+			int(minRadius),
+			int(maxRadius),
+			0,
+			physics.MaxTemperature,
+		),
 	}
 }
 
 func (f *Fireplace) Update() error {
-	switch {
-	case repeatingMouseClick(ebiten.MouseButtonLeft):
-		cursorX, cursorY := ebiten.CursorPosition()
+	f.readInputs()
 
-		offsetX, offsetY := math.RandomOffset()
-
-		obj := physics.NewVerletObject(
-			math.Vec2{
-				X: float64(cursorX) + offsetX,
-				Y: float64(cursorY) + offsetY,
-			},
-			radius,
+	if !f.game.pause {
+		var (
+			dt       float64 = 0.2
+			subSteps         = 3
+			subDt            = dt / float64(subSteps)
 		)
 
-		f.root.Insert(obj)
-
-		f.movableObjects = append(f.movableObjects, obj)
-	case repeatingKeyPress(ebiten.KeyC):
-		f.movableObjects = f.movableObjects[:0]
-	case repeatingKeyPress(ebiten.KeyF1):
-		f.game.debug = !f.game.debug
-	case repeatingKeyPress(ebiten.KeyF2):
-		f.game.debugTemp = !f.game.debugTemp
-	case repeatingKeyPress(ebiten.KeyF3):
-		f.game.drawTemp = !f.game.drawTemp
+		for i := 0; i < subSteps; i++ {
+			f.rebuildTree()
+			f.applyHeat()
+			f.applyForces()
+			f.applyAllConstraints()
+			f.solveCollisions7()
+			f.updatePositions2(subDt)
+			f.recalculateRadiuses()
+		}
 	}
-
-	var (
-		dt       float64 = 1
-		subSteps         = 2
-		subDt            = dt / float64(subSteps)
-		// subDt = float64(1)
-	)
-
-	for i := 0; i < subSteps; i++ {
-		f.rebuildTree()
-		f.applyHeat()
-		f.applyForces()
-		f.applyAllConstraints()
-		f.solveCollisions6()
-		f.updatePositions2(subDt)
-	}
-
-	// time.Sleep(100 * time.Millisecond)
 
 	return nil
 }
 
 func (f *Fireplace) Draw(screen *ebiten.Image) {
-	// f.withCircleConstraint(screen)
+	defer func() {
+		if err := recover(); err != nil {
+			panic(err)
+		}
+	}()
+	var (
+		tempSum            float64
+		hiddenObjectsCount int
 
-	var tempSum float64
+		commonImageOptions = &ebiten.DrawImageOptions{}
+
+		w, h = screen.Size()
+	)
+
+	ballSource := ebiten.NewImage(w, h)
 	for _, obj := range f.movableObjects {
+		if obj.Hidden {
+			hiddenObjectsCount++
+			continue
+		}
+		if obj.Temperature() == 0 {
+			continue
+		}
+
 		tempSum += obj.Temperature()
 
-		if f.game.drawTemp {
-			ebitenutil.DrawCircle(
-				screen,
-				obj.CurrentPosition.X,
-				obj.CurrentPosition.Y,
-				obj.Radius(),
-				color.ToRGBByTemperature(uint32(obj.Temperature())),
-			)
-		} else {
-			f.drawOptions.GeoM.Reset()
-			f.drawOptions.GeoM.Translate(obj.CurrentPosition.X-obj.Radius(), obj.CurrentPosition.Y-obj.Radius())
-			screen.DrawImage(&particleSprite, &f.drawOptions)
-		}
+		commonImageOptions.GeoM.Reset()
+		commonImageOptions.GeoM.Translate(obj.CurrentPosition.X-obj.Radius(), obj.CurrentPosition.Y-obj.Radius())
+		ballSource.DrawImage(
+			f.particleTextureMap.TemperatureImage(obj.Radius(), obj.Temperature()),
+			commonImageOptions,
+		)
 
 		if f.game.debug {
 			ebitenutil.DebugPrintAt(
@@ -226,6 +248,35 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 			)
 		}
 	}
+
+	if f.game.bloom {
+		shaderOptions := &ebiten.DrawRectShaderOptions{}
+		shaderOptions.Uniforms = map[string]interface{}{
+			"Horizontal": float32(0),
+		}
+		shaderOptions.Images[0] = ballSource
+		screen.DrawRectShader(
+			f.game.screenWidth,
+			f.game.screenHeight,
+			bloomShader,
+			shaderOptions,
+		)
+
+		shaderOptions.Uniforms = map[string]interface{}{
+			"Horizontal": float32(1),
+		}
+		shaderOptions.Images[0] = ballSource
+		screen.DrawRectShader(
+			f.game.screenWidth,
+			f.game.screenHeight,
+			bloomShader,
+			shaderOptions,
+		)
+	} else {
+		commonImageOptions.GeoM.Reset()
+		screen.DrawImage(ballSource, commonImageOptions)
+	}
+
 	if f.game.drawTemp {
 		for _, emitter := range f.heatEmitters {
 			ebitenutil.DrawCircle(
@@ -247,8 +298,9 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(
 		screen,
 		fmt.Sprintf(
-			"count: %d | average temp: %f | %f",
-			len(f.movableObjects),
+			"count: %d | hidden: %d | average temp: %f | %f",
+			len(f.movableObjects)-hiddenObjectsCount,
+			hiddenObjectsCount,
 			float32(tempSum)/float32(len(f.movableObjects)),
 			ebiten.ActualFPS(),
 		),

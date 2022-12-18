@@ -5,7 +5,7 @@ import "github.com/snowzhop/verlet-fireplace/internal/math"
 const (
 	MaxTemperature = 1000
 
-	maxRaiseForce = 1.3
+	maxRaiseForce = 10
 )
 
 func RaiseForce(t float64) math.Vec2 {

@@ -12,6 +12,10 @@ import (
 var (
 	//go:embed particle.png
 	rawParticle []byte
+
+	//go:embed bloom.kage
+	bloomShader []byte
+
 	particleImg ebiten.Image
 )
 
@@ -29,4 +33,13 @@ func init() {
 
 func Particle() ebiten.Image {
 	return particleImg
+}
+
+func BloomShader() []byte {
+	result := make([]byte, len(bloomShader))
+	n := copy(result, bloomShader)
+	if n != len(bloomShader) {
+		panic("failed to copy bloomShader to result")
+	}
+	return result
 }

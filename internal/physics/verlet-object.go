@@ -12,6 +12,8 @@ import (
 
 const (
 	maxAcceleration = float64(3)
+	maxVelocity     = float64(3)
+	cuttedVelocity  = maxVelocity * 0.01
 )
 
 var (
@@ -67,6 +69,15 @@ func NewVerletObjectWithTemp(startPos math.Vec2, radius float64, temp float64) *
 func (v *VerletObject) UpdatePosition(dt float64) {
 	velocity := math.SubVec2(v.CurrentPosition, v.OldPosition)
 
+	vLen := velocity.Len()
+	if vLen > maxVelocity {
+		velocity.X = velocity.X * cuttedVelocity / vLen
+		velocity.Y = velocity.Y * cuttedVelocity / vLen
+
+		v.CurrentPosition = math.SumVec2(v.OldPosition, velocity)
+		// v.Hidden = true
+	}
+
 	v.OldPosition = v.CurrentPosition
 
 	// CurrentPosition = CurrentPosition + velocity + acceleration * dt^2
@@ -106,6 +117,19 @@ func (v *VerletObject) IncreaseTemperature(tChange float64) {
 	}
 }
 
+func (v *VerletObject) Refresh(distribX float64) {
+	curPos := math.Vec2{X: math.RandomFloat64(0, distribX), Y: v.radius}
+	v.CurrentPosition = curPos
+	v.OldPosition = curPos
+	v.Acceleration = math.Vec2{}
+	v.temperature = 1
+	v.Hidden = false
+}
+
+func (v *VerletObject) SetRadius(r float64) {
+	v.radius = r
+}
+
 func (v *VerletObject) Bounds() *rtreego.Rect {
 	rect, err := rtreego.NewRect(
 		rtreego.Point{v.CurrentPosition.X - v.radius/2, v.CurrentPosition.Y - v.radius/2},
@@ -129,7 +153,7 @@ func (v *VerletObject) Intersects(p quadtree.Particle) bool {
 
 	collisionAxis := math.SubVec2(v.CurrentPosition, obj.CurrentPosition)
 	dist := collisionAxis.Len()
-	return dist < obj.radius+v.radius
+	return dist <= obj.radius+v.radius
 }
 
 func (v *VerletObject) Side() float64 {

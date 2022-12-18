@@ -1,0 +1,26 @@
+package main
+
+var Horizontal float
+
+func Fragment(position vec4, texCoord vec2, color vec4) vec4 {
+    samples := [...]float{
+        0.00991, 0.19292, 0.54106, 0.89206, 0.54106, 0.19292, 0.00991,
+    }
+
+    texOffset := 1.0/imageSrcTextureSize()
+    sum := vec3(0.0, 0.0, 0.0)
+
+    if Horizontal == 0.0 {
+        for i := 0; i < len(samples); i++ {
+            sum += imageSrc0At(texCoord+vec2(texOffset.y*float(i), 0.0)).rgb * samples[i]
+            sum += imageSrc0At(texCoord-vec2(texOffset.y*float(i), 0.0)).rgb * samples[i]
+        }
+    } else {
+        for i := 0; i < len(samples); i++ {
+            sum += imageSrc0At(texCoord+vec2(texOffset.x*float(i), 0.0)).rgb * samples[i]
+            sum += imageSrc0At(texCoord-vec2(texOffset.x*float(i), 0.0)).rgb * samples[i]
+        }
+    }
+    
+    return vec4(sum, 1.0)
+}
