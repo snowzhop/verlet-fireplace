@@ -4,7 +4,8 @@ var Horizontal float
 
 func Fragment(position vec4, texCoord vec2, color vec4) vec4 {
     samples := [...]float{
-        0.00991, 0.19292, 0.54106, 0.89206, 0.54106, 0.19292, 0.00991,
+        0.00991, 0.19292, 0.54106, 0.89206, 0.54106,
+        // 0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216,
     }
 
     texOffset := 1.0/imageSrcTextureSize()

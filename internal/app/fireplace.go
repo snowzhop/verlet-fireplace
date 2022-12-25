@@ -69,7 +69,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 			screenHeight:          screenHeight,
 			temperatureStep:       10,
 			temperatureLosing:     0.8,
-			heatEmitterEfficiency: 0.0015,
+			heatEmitterEfficiency: 0.0025,
 			bloom:                 true,
 		}
 		screenWidthF64 = float64(screenWidth)
@@ -80,12 +80,6 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 		// spawn particles
 		startCount = 2000
 		offset     = float64(0)
-
-		// spawn heat emitters
-		mean                 = screenWidthF64 / 2
-		stdDeviation         = float64(70)
-		normalDistrib        = math.NewGauss(mean, stdDeviation)
-		heatRadiusMultiplier = float64(600)
 	)
 
 	for y := screenWidthF64 - radius; true; y -= 2 * radius {
@@ -131,7 +125,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 
 	var heatEmitters []*physics.VerletObject
 	for i := float64(0); i < screenWidthF64; i += radius * 7 {
-		heatEmitterRadius := normalDistrib.Calculate(i) * heatRadiusMultiplier * radius * 2
+		heatEmitterRadius := math.NormFloat64() * 10
 		if heatEmitterRadius >= radius {
 			heatEmitters = append(heatEmitters, physics.NewVerletObjectWithTemp(
 				math.Vec2{
@@ -255,7 +249,9 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 			"Horizontal": float32(0),
 		}
 		shaderOptions.Images[0] = ballSource
-		screen.DrawRectShader(
+		w, h := ballSource.Size()
+		imgBuffer := ebiten.NewImage(w, h)
+		imgBuffer.DrawRectShader(
 			f.game.screenWidth,
 			f.game.screenHeight,
 			bloomShader,
@@ -265,7 +261,7 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		shaderOptions.Uniforms = map[string]interface{}{
 			"Horizontal": float32(1),
 		}
-		shaderOptions.Images[0] = ballSource
+		shaderOptions.Images[0] = imgBuffer
 		screen.DrawRectShader(
 			f.game.screenWidth,
 			f.game.screenHeight,

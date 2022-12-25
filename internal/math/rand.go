@@ -14,3 +14,7 @@ func RandomOffset() (float64, float64) {
 func RandomFloat64(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
 }
+
+func NormFloat64() float64 {
+	return rand.NormFloat64()
+}
