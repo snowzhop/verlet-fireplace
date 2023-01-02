@@ -67,10 +67,10 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 		game = game{
 			screenWidth:           screenWidth,
 			screenHeight:          screenHeight,
-			temperatureStep:       10,
+			temperatureStep:       6,
 			temperatureLosing:     0.8,
-			heatEmitterEfficiency: 0.0025,
-			bloom:                 true,
+			heatEmitterEfficiency: 0.008,
+			bloom:                 false,
 		}
 		screenWidthF64 = float64(screenWidth)
 		// root           = quadtree.New(float64(screenWidth))
@@ -124,6 +124,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 	// -------------------------------------
 
 	var heatEmitters []*physics.VerletObject
+	fmt.Print("Heat emitters radiuses:")
 	for i := float64(0); i < screenWidthF64; i += radius * 7 {
 		heatEmitterRadius := math.NormFloat64() * 10
 		if heatEmitterRadius >= radius {
@@ -136,7 +137,9 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 				1000,
 			))
 		}
+		fmt.Printf(" %.4f", heatEmitterRadius)
 	}
+	fmt.Print("\n")
 
 	var (
 		err            error

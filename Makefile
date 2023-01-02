@@ -1,4 +1,9 @@
-build:
+BINDIR=./bin
+
+checkdir:
+	@if [ ! -d "${BINDIR}" ]; then mkdir "${BINDIR}"; fi
+
+build: checkdir
 	go build -o ./bin ./cmd/fireplace
 
 run: build
