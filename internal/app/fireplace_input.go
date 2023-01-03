@@ -41,11 +41,11 @@ func repeatingKeyPress(key ebiten.Key) bool {
 func (f *Fireplace) readInputs() {
 	switch {
 	case repeatingKeyPress(ebiten.KeyF1):
-		f.game.debug = !f.game.debug
+		f.config.debug = !f.config.debug
 	case repeatingKeyPress(ebiten.KeyF2):
-		f.game.debugTemp = !f.game.debugTemp
+		f.config.debugTemp = !f.config.debugTemp
 	case repeatingKeyPress(ebiten.KeyF3):
-		f.game.drawTemp = !f.game.drawTemp
+		f.config.drawTemp = !f.config.drawTemp
 	case repeatingMouseClick(ebiten.MouseButtonLeft):
 		cursorX, cursorY := ebiten.CursorPosition()
 
@@ -65,8 +65,8 @@ func (f *Fireplace) readInputs() {
 	case repeatingKeyPress(ebiten.KeyC):
 		f.movableObjects = f.movableObjects[:0]
 	case repeatingKeyPress(ebiten.KeyP):
-		f.game.pause = !f.game.pause
+		f.config.pause = !f.config.pause
 	case repeatingKeyPress(ebiten.KeyB):
-		f.game.bloom = !f.game.bloom
+		f.config.bloom = !f.config.bloom
 	}
 }

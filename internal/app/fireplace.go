@@ -42,7 +42,7 @@ func init() {
 }
 
 type Fireplace struct {
-	game
+	config
 
 	gravity        math.Vec2
 	root           *quadtree.Node
@@ -64,11 +64,11 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 	fmt.Printf("screenWidth: %d\n", screenWidth)
 
 	var (
-		game = game{
+		cfg = config{
 			screenWidth:           screenWidth,
 			screenHeight:          screenHeight,
-			temperatureStep:       6,
-			temperatureLosing:     0.8,
+			temperatureStep:       2,
+			temperatureLosing:     1.75,
 			heatEmitterEfficiency: 0.008,
 			bloom:                 false,
 		}
@@ -123,23 +123,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 	// }
 	// -------------------------------------
 
-	var heatEmitters []*physics.VerletObject
-	fmt.Print("Heat emitters radiuses:")
-	for i := float64(0); i < screenWidthF64; i += radius * 7 {
-		heatEmitterRadius := math.NormFloat64() * 10
-		if heatEmitterRadius >= radius {
-			heatEmitters = append(heatEmitters, physics.NewVerletObjectWithTemp(
-				math.Vec2{
-					X: i,
-					Y: screenWidthF64 - heatEmitterRadius,
-				},
-				heatEmitterRadius,
-				1000,
-			))
-		}
-		fmt.Printf(" %.4f", heatEmitterRadius)
-	}
-	fmt.Print("\n")
+	heatEmitters := physics.NewHeatEmitters(screenWidthF64, 4, radius)
 
 	var (
 		err            error
@@ -156,7 +140,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 	root.Dump()
 
 	return &Fireplace{
-		game:           game,
+		config:         cfg,
 		gravity:        math.Vec2{X: 0, Y: 0.5},
 		movableObjects: objects,
 		root:           root,
@@ -173,7 +157,7 @@ func NewFireplace(screenWidth, screenHeight int) *Fireplace {
 func (f *Fireplace) Update() error {
 	f.readInputs()
 
-	if !f.game.pause {
+	if !f.config.pause {
 		var (
 			dt       float64 = 0.2
 			subSteps         = 3
@@ -228,7 +212,7 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 			commonImageOptions,
 		)
 
-		if f.game.debug {
+		if f.config.debug {
 			ebitenutil.DebugPrintAt(
 				screen,
 				fmt.Sprintf("%d", obj.ID()),
@@ -236,7 +220,7 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 				int(obj.CurrentPosition.Y)-10,
 			)
 		}
-		if f.game.debugTemp {
+		if f.config.debugTemp {
 			ebitenutil.DebugPrintAt(
 				screen,
 				fmt.Sprintf("%f", obj.Temperature()),
@@ -246,7 +230,7 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	if f.game.bloom {
+	if f.config.bloom {
 		shaderOptions := &ebiten.DrawRectShaderOptions{}
 		shaderOptions.Uniforms = map[string]interface{}{
 			"Horizontal": float32(0),
@@ -255,8 +239,8 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		w, h := ballSource.Size()
 		imgBuffer := ebiten.NewImage(w, h)
 		imgBuffer.DrawRectShader(
-			f.game.screenWidth,
-			f.game.screenHeight,
+			f.config.screenWidth,
+			f.config.screenHeight,
 			bloomShader,
 			shaderOptions,
 		)
@@ -266,8 +250,8 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		}
 		shaderOptions.Images[0] = imgBuffer
 		screen.DrawRectShader(
-			f.game.screenWidth,
-			f.game.screenHeight,
+			f.config.screenWidth,
+			f.config.screenHeight,
 			bloomShader,
 			shaderOptions,
 		)
@@ -276,7 +260,7 @@ func (f *Fireplace) Draw(screen *ebiten.Image) {
 		screen.DrawImage(ballSource, commonImageOptions)
 	}
 
-	if f.game.drawTemp {
+	if f.config.drawTemp {
 		for _, emitter := range f.heatEmitters {
 			ebitenutil.DrawCircle(
 				screen,

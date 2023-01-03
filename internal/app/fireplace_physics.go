@@ -30,7 +30,7 @@ func (f *Fireplace) applyForces() {
 				raiseForce,
 			),
 		)
-		t := f.game.temperatureLosing
+		t := f.config.temperatureLosing
 		// t := math.Sigmoid(obj.Temperature()/physics.MaxTemperature*12-6) * obj.Temperature()
 		// t := math.Linear(obj.Temperature(), 1.5) / physics.MaxTemperature * obj.Temperature()
 		obj.IncreaseTemperature(-t)
@@ -82,12 +82,12 @@ func (f *Fireplace) applyWorldBoxConstraintDirectly(obj *physics.VerletObject) {
 	if obj.CurrentPosition.X < obj.Radius() {
 		obj.CurrentPosition.X = obj.Radius()
 	}
-	if obj.CurrentPosition.X > float64(f.game.screenWidth)-obj.Radius() {
-		obj.CurrentPosition.X = float64(f.game.screenWidth) - obj.Radius()
+	if obj.CurrentPosition.X > float64(f.config.screenWidth)-obj.Radius() {
+		obj.CurrentPosition.X = float64(f.config.screenWidth) - obj.Radius()
 	}
 
-	if obj.CurrentPosition.Y > float64(f.game.screenHeight)-obj.Radius() {
-		obj.CurrentPosition.Y = float64(f.game.screenHeight) - obj.Radius()
+	if obj.CurrentPosition.Y > float64(f.config.screenHeight)-obj.Radius() {
+		obj.CurrentPosition.Y = float64(f.config.screenHeight) - obj.Radius()
 	}
 	if obj.CurrentPosition.Y < obj.Radius() {
 		obj.CurrentPosition.Y = obj.Radius()
@@ -322,11 +322,11 @@ func (f *Fireplace) solveCollisions6() {
 
 				// Temperature
 				if obj1.Temperature() < obj2.Temperature() {
-					obj1.IncreaseTemperature(f.game.temperatureStep)
-					obj2.IncreaseTemperature(-f.game.temperatureStep)
+					obj1.IncreaseTemperature(f.config.temperatureStep)
+					obj2.IncreaseTemperature(-f.config.temperatureStep)
 				} else {
-					obj1.IncreaseTemperature(-f.game.temperatureStep)
-					obj2.IncreaseTemperature(f.game.temperatureStep)
+					obj1.IncreaseTemperature(-f.config.temperatureStep)
+					obj2.IncreaseTemperature(f.config.temperatureStep)
 				}
 			}
 		}
@@ -415,11 +415,11 @@ func (f *Fireplace) solveCollisions7() {
 
 		// Temperature
 		if obj1.Temperature() < obj2.Temperature() {
-			obj1.IncreaseTemperature(f.game.temperatureStep)
-			obj2.IncreaseTemperature(-f.game.temperatureStep)
+			obj1.IncreaseTemperature(f.config.temperatureStep)
+			obj2.IncreaseTemperature(-f.config.temperatureStep)
 		} else {
-			obj1.IncreaseTemperature(-f.game.temperatureStep)
-			obj2.IncreaseTemperature(f.game.temperatureStep)
+			obj1.IncreaseTemperature(-f.config.temperatureStep)
+			obj2.IncreaseTemperature(f.config.temperatureStep)
 		}
 	}
 }
@@ -445,7 +445,7 @@ func (f *Fireplace) solveCollisions8() {
 
 			n := math.ApplyVec2(collisionAxis, 1/dist)
 			delta := obj1.Radius() + obj2.Radius() - dist
-			correction := math.ApplyVec2(n, float64(0.5)*delta)
+			correction := math.ApplyVec2(n, 0.5*delta)
 
 			obj1NextPosition := math.SumVec2(
 				obj1.CurrentPosition,
@@ -469,11 +469,11 @@ func (f *Fireplace) solveCollisions8() {
 
 			// Temperature
 			if obj1.Temperature() < obj2.Temperature() {
-				obj1.IncreaseTemperature(f.game.temperatureStep)
-				obj2.IncreaseTemperature(-f.game.temperatureStep)
+				obj1.IncreaseTemperature(f.config.temperatureStep)
+				obj2.IncreaseTemperature(-f.config.temperatureStep)
 			} else {
-				obj1.IncreaseTemperature(-f.game.temperatureStep)
-				obj2.IncreaseTemperature(f.game.temperatureStep)
+				obj1.IncreaseTemperature(-f.config.temperatureStep)
+				obj2.IncreaseTemperature(f.config.temperatureStep)
 			}
 		}
 	}
@@ -520,13 +520,13 @@ func (f *Fireplace) canHiddenObjectBeRestored(obj *physics.VerletObject) bool {
 
 func (f *Fireplace) rebuildTree() {
 	f.root.Clear()
-	// f.root = quadtree.New(float64(f.game.screenWidth))
-	f.root = quadtree.NewWithStart(-rootOffset, -rootOffset, float64(f.game.screenWidth)+2*rootOffset)
+	// f.root = quadtree.New(float64(f.config.screenWidth))
+	f.root = quadtree.NewWithStart(-rootOffset, -rootOffset, float64(f.config.screenWidth)+2*rootOffset)
 	for _, obj := range f.movableObjects {
 		if !obj.Hidden {
 			f.root.Insert(obj)
 		} else {
-			obj.Refresh(float64(f.game.screenWidth))
+			obj.Refresh(float64(f.config.screenWidth))
 			f.root.Insert(obj)
 		}
 	}
@@ -541,7 +541,7 @@ func (f *Fireplace) applyHeat() {
 				panic(fmt.Sprintf("applyHeat: failed to type cast obj %T", rawObj))
 			}
 
-			obj.IncreaseTemperature(heatEmitter.Temperature() * f.game.heatEmitterEfficiency)
+			obj.IncreaseTemperature(heatEmitter.Temperature() * f.config.heatEmitterEfficiency)
 			if obj.CurrentPosition.IsNaN() {
 				panic(fmt.Sprintf("applyHeat: pos is nan: %v", *obj))
 			}

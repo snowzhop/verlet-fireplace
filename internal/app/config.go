@@ -1,6 +1,6 @@
 package app
 
-type game struct {
+type config struct {
 	screenWidth, screenHeight int
 
 	temperatureStep       float64
