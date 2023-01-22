@@ -1,0 +1,2 @@
+touch ./bin/index.html
+printf "<!DOCTYPE html><script src=\"wasm_exec.js\"></script><script> if (!WebAssembly.instantiateStreaming) { WebAssembly.instantiateStreaming = async (resp, importObject) => { const source = await (await resp).arrayBuffer(); return await WebAssembly.instantiate(source, importObject); }; } const go = new Go(); WebAssembly.instantiateStreaming(fetch(\"fireplace.wasm\"), go.importObject).then(result => { go.run(result.instance); }); </script>" > ./bin/index.html
