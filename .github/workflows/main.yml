@@ -2,8 +2,6 @@ name: Deploy to github pages
 
 on:
   push:
-    branches:
-      - main
   
 jobs:
   deploy-to-github-pages:
@@ -24,6 +22,3 @@ jobs:
       with:
         branch: gh-pages
         folder: ./bin
-    
-    - name: startup
-      run: ./cmd/fireplace-server

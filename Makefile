@@ -27,7 +27,6 @@ run: build
 # wasm build
 buildwasm: checkbindir checkwasmexec checkmainhtml
 	GOOS=js GOARCH=wasm go build -o ./bin/fireplace.wasm ./cmd/fireplace
-	go build -o ./bin/fireplace-server ./cmd/fireplace-server
 
 #wasmrun: buildwasm
 #	./bin/
