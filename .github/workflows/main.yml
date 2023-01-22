@@ -1,0 +1,29 @@
+name: Deploy to github pages
+
+on:
+  push:
+    branches:
+      - main
+  
+jobs:
+  deploy-to-github-pages:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup Go 1.18
+      uses: actions/setup-go@v3.5.0
+      with:
+        go-version: 1.18.3
+    
+    - name: Generate actual build
+      run: make buildwasm
+
+    - name: Uploading files to gh-pages branch
+      uses: JamesIves/github-pages-deploy-action@4.1.4
+      with:
+        branch: gh-pages
+        folder: ./bin
+    
+    - name: startup
+      run: ./cmd/fireplace-server
